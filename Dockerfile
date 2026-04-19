@@ -22,10 +22,9 @@ COPY src/ ./src/
 COPY python/ ./python/
 
 # Copy dependent crates (trust-kernel, tibet-store-mmu, jis-core)
-# In Docker context these need to be available as relative paths
-COPY trust-kernel/ ./trust-kernel/
-COPY tibet-store-mmu/ ./tibet-store-mmu/
-COPY jis-core/ ./jis-core/
+COPY crates/trust-kernel/ ./crates/trust-kernel/
+COPY crates/tibet-store-mmu/ ./crates/tibet-store-mmu/
+COPY crates/jis-core/ ./crates/jis-core/
 
 # Build release binary (oomllama-server + gguf2oom)
 RUN cargo build --release --bin oomllama-server --bin gguf2oom 2>/dev/null || \
@@ -61,4 +60,4 @@ LABEL org.opencontainers.image.title="OomLlama"
 LABEL org.opencontainers.image.description="Sovereign AI Inference Engine — .oom quantization, Trust Kernel encryption, JIS identity, TIBET provenance"
 LABEL org.opencontainers.image.vendor="HumoticaOS"
 LABEL org.opencontainers.image.source="https://github.com/humotica/oomllama"
-LABEL org.opencontainers.image.version="1.0.0-alpha"
+LABEL org.opencontainers.image.version="1.0.0-alpha.2"
