@@ -966,13 +966,18 @@ impl GhostLlamaModel {
             println!("STD_DEBUG POST-FINAL-NORM last_pos[:10]: {:?}", &last_pos[..10.min(last_pos.len())]);
 
             // Check lm_head weight shape
-            let lm_w = self.lm_head.weight.materialize().unwrap();
-            println!("STD_DEBUG LM_HEAD.weight shape: {:?}", lm_w.shape());
-            let lm_flat = lm_w.flatten_all().unwrap().to_vec1::<f32>().unwrap();
-            println!("STD_DEBUG LM_HEAD.weight first 10: {:?}", &lm_flat[..10.min(lm_flat.len())]);
-            let w_min = lm_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let w_max = lm_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("STD_DEBUG LM_HEAD.weight min={:.4}, max={:.4}", w_min, w_max);
+            match self.lm_head.weight.materialize() {
+                Ok(lm_w) => {
+                    println!("STD_DEBUG LM_HEAD.weight shape: {:?}", lm_w.shape());
+                    if let Ok(lm_flat) = lm_w.flatten_all().and_then(|t| t.to_vec1::<f32>()) {
+                        println!("STD_DEBUG LM_HEAD.weight first 10: {:?}", &lm_flat[..10.min(lm_flat.len())]);
+                        let w_min = lm_flat.iter().cloned().fold(f32::INFINITY, f32::min);
+                        let w_max = lm_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+                        println!("STD_DEBUG LM_HEAD.weight min={:.4}, max={:.4}", w_min, w_max);
+                    }
+                }
+                Err(e) => println!("STD_DEBUG LM_HEAD.weight: not materialized yet ({})", e),
+            }
         }
 
         // 4. LM Head (Final Ghost)

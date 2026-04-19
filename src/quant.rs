@@ -394,7 +394,9 @@ impl OomLoader {
 
     /// Dequantize a specific block of a tensor. Used for fine-grained lazy loading.
     pub fn dequantize_block(&self, tensor_name: &str, block_idx: u32, dest: &mut [f32]) -> Result<()> {
-        let meta = self.tensors.get(tensor_name).ok_or("Tensor not found")?;
+        let meta = self.tensors.get(tensor_name)
+            .or_else(|| if tensor_name == "lm_head.weight" { self.tensors.get("model.embed_tokens.weight") } else { None })
+            .ok_or("Tensor not found")?;
         if block_idx >= meta.num_blocks { return Err("Block index out of bounds".into()); }
 
         let mut offset = meta.offset;
@@ -434,7 +436,10 @@ impl OomLoader {
 
     /// Dequantize entire tensor into a provided buffer.
     pub fn dequantize_tensor_into(&self, name: &str, dest: &mut [f32]) -> Result<()> {
-        let meta = self.tensors.get(name).ok_or("Tensor not found")?;
+        // Weight tying fallback: lm_head.weight == model.embed_tokens.weight (Qwen, LLaMA, etc.)
+        let meta = self.tensors.get(name)
+            .or_else(|| if name == "lm_head.weight" { self.tensors.get("model.embed_tokens.weight") } else { None })
+            .ok_or("Tensor not found")?;
         if dest.len() < meta.total_values as usize { return Err("Destination buffer too small".into()); }
 
         // Debug first block's scale/min for specific tensors
@@ -514,7 +519,10 @@ impl OomLoader {
     }
 
     pub fn dequantize_tensor(&self, name: &str) -> Result<Vec<f32>> {
-        let meta = self.tensors.get(name).ok_or("Tensor not found")?;
+        // Weight tying fallback: lm_head.weight == model.embed_tokens.weight (Qwen, LLaMA, etc.)
+        let meta = self.tensors.get(name)
+            .or_else(|| if name == "lm_head.weight" { self.tensors.get("model.embed_tokens.weight") } else { None })
+            .ok_or("Tensor not found")?;
         let mut result = vec![0.0; meta.total_values as usize];
         self.dequantize_tensor_into(name, &mut result)?;
         Ok(result)
