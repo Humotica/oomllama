@@ -1,0 +1,127 @@
+[package]
+name = "tibet-trust-kernel"
+version = "1.0.0-alpha"
+edition = "2021"
+description = "Zero-Trust DGX — Cross-machine AI memory virtualization. DIME aperture maps LLMs across servers via userfaultfd + encrypted RAID-0. No NVLink required."
+license = "MIT"
+authors = ["Jasper van de Meent <jasper@humotica.com>", "Root AI <root_idd@humotica.nl>"]
+keywords = ["ai-memory", "cross-machine", "llm-inference", "userfaultfd", "tibet"]
+categories = ["science", "hardware-support", "memory-management"]
+repository = "https://github.com/Humotica/tibet-trust-kernel"
+homepage = "https://ainternet.org"
+readme = "README.md"
+# publish = true  # Klaar na hardware test op P520 ↔ DL360
+
+[package.metadata.docs.rs]
+features = ["kvm", "cluster", "llm"]
+
+# ═══════════════════════════════════════════════════════════════
+# Features — pick what you need
+# ═══════════════════════════════════════════════════════════════
+#
+# tibet-trust-kernel = { version = "1.0", features = ["cluster"] }   # Cross-machine RAM
+# tibet-trust-kernel = { version = "1.0", features = ["llm"] }       # LLM Memory Mapper
+# tibet-trust-kernel = { version = "1.0", features = ["full"] }      # Everything
+#
+[features]
+default = ["simulation", "cluster", "llm"]
+simulation = []                    # Simulated KVM — for testing without hardware
+kvm = []                           # Real Ignition KVM — requires /dev/kvm
+cluster = []                       # Cross-machine RAM RAID-0 + ClusterMux transport
+llm = ["cluster"]                  # LLM Memory Mapper (DIME aperture) — implies cluster
+full = ["cluster", "llm"]          # All features
+
+[dependencies]
+userfaultfd = "0.8.1"
+libc = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Airlock Bifurcatie — echte crypto
+aes-gcm = "0.10"           # AES-256-GCM via AES-NI (core::arch::x86_64::_mm_aesenc_si128)
+x25519-dalek = { version = "2", features = ["static_secrets"] }  # X25519 key agreement
+sha2 = "0.10"               # SHA-256
+hkdf = "0.12"               # HKDF-SHA256 per-block key derivation
+rand = "0.8"                # OsRng voor nonces en ephemeral keys
+rayon = "1.10"              # Multi-core parallel sealing/opening
+
+# Real KVM backend — when ignition is published to crates.io:
+# ignition = { version = "0.1", optional = true }
+
+[[bin]]
+name = "tibet-bench"
+path = "src/bin/tibet_bench.rs"
+
+[[bin]]
+name = "dual-kernel-demo"
+path = "src/bin/dual_kernel_demo.rs"
+
+[[bin]]
+name = "cluster-paging-demo"
+path = "src/bin/cluster_paging_demo.rs"
+
+[[bin]]
+name = "cluster-transport-demo"
+path = "src/bin/cluster_transport_demo.rs"
+
+[[bin]]
+name = "portmux-xdp-demo"
+path = "src/bin/portmux_xdp_demo.rs"
+
+[[bin]]
+name = "ram-raid-cluster-demo"
+path = "src/bin/ram_raid_cluster_demo.rs"
+
+[[bin]]
+name = "llm-mapper-demo"
+path = "src/bin/llm_mapper_demo.rs"
+
+[[bench]]
+name = "airlock_bench"
+harness = false
+
+[[bench]]
+name = "profile_bench"
+harness = false
+
+[[bench]]
+name = "roi_bench"
+harness = false
+
+[[bench]]
+name = "portmux_bench"
+harness = false
+
+[[bench]]
+name = "xdp_bench"
+harness = false
+
+[[bench]]
+name = "seccomp_zandbak_bench"
+harness = false
+
+[[bench]]
+name = "snapshot_bench"
+harness = false
+
+[[bench]]
+name = "upip_pager_bench"
+harness = false
+
+[[bench]]
+name = "vmm_inject_bench"
+harness = false
+
+[[bench]]
+name = "container_bench"
+harness = false
+
+[[bench]]
+name = "ram_raid_bench"
+harness = false
+
+[[bench]]
+name = "bifurcation_bench"
+harness = false

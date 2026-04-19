@@ -1,0 +1,115 @@
+[package]
+name = "oomllama"
+version = "1.0.0-alpha"
+edition = "2021"
+authors = ["Jasper van de Meent <jasper@humotica.com>", "Root AI <root_idd@humotica.nl>"]
+description = "Sovereign AI Inference Engine — .oom quantization, Trust Kernel encryption, JIS identity routing, TIBET provenance. The auto where trust-kernel is the motor."
+license = "MIT"
+repository = "https://github.com/humotica/oomllama"
+keywords = ["llm", "inference", "sovereign", "oomllama", "tibet"]
+readme = "README.md"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Web framework - axum is fast and ergonomic
+axum = "0.7"
+tower = "0.5"
+tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Time handling (for Timeslots)
+chrono = { version = "0.4", features = ["serde"] }
+
+# Cryptography (for TIBET tokens)
+sha2 = "0.10"
+rand = "0.8"
+
+# System (madvise, page management)
+libc = "0.2"
+base64 = "0.22"
+hex = "0.4"
+
+# UUID for IDD identifiers
+uuid = { version = "1.0", features = ["v4", "serde"] }
+notify = "6.1.1"
+colored = "2.0"
+rusqlite = { version = "0.38.0", features = ["bundled"] }
+parking_lot = "0.12.5"
+dashmap = "6.1.0"
+candle-core = { version = "0.9.1" }
+candle-nn = { version = "0.9.1" }
+candle-transformers = { version = "0.9.1" }
+hf-hub = "0.4.3"
+tokenizers = "0.22.2"
+regex = "1.12.2"
+thiserror = "2.0.17"
+tracing = "0.1.44"
+tracing-subscriber = "0.3.22"
+ratatui = { version = "0.30.0", features = ["all-widgets", "crossterm"] }
+crossterm = "0.29.0"
+reqwest = { version = "0.13.1", features = ["json"] }
+ctrlc = "3.4"
+tempfile = "3.14"
+walkdir = "2.5.0"
+memmap2 = "0.9"
+anyhow = "1.0"
+safetensors = "0.4"
+shellexpand = "3.1"
+
+# Trust/Tibet/JIS ecosystem (sovereign AI stack)
+tibet-trust-kernel = { version = "1.0.0-alpha", path = "crates/trust-kernel" }
+tibet-store-mmu = { version = "0.1.0", path = "crates/tibet-store-mmu" }
+jis-core = { version = "0.3.0", path = "crates/jis-core" }
+
+# Python bindings (optional, for oomllama PyPI)
+pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
+
+[features]
+default = []
+python = ["pyo3"]
+cuda = ["candle-core/cuda", "candle-nn/cuda", "candle-transformers/cuda"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[[bin]]
+name = "quantize"
+path = "src/bin/quantize.rs"
+
+[[bin]]
+name = "oomllama-server"
+path = "src/main.rs"
+
+[[bin]]
+name = "oomllama"
+path = "src/bin/oomllama.rs"
+
+[[bin]]
+name = "chimera"
+path = "src/bin/chimera.rs"
+
+[[bin]]
+name = "sovereign"
+path = "src/bin/sovereign.rs"
+
+[[bin]]
+name = "gguf2oom"
+path = "src/bin/gguf2oom.rs"
+
+[[bin]]
+name = "safetensors2oom"
+path = "src/bin/safetensors2oom.rs"
+
+[lib]
+name = "oomllama"
+path = "src/lib.rs"
+crate-type = ["lib", "cdylib"]  # cdylib for Python extension

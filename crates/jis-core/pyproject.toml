@@ -1,0 +1,42 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "jis-core"
+version = "0.3.0"
+description = "JIS Core - Cryptographic identity where intent comes first. Ed25519 Rust kernel, .aint domain resolution, TIBET provenance."
+readme = "README.md"
+license = {text = "MIT OR Apache-2.0"}
+authors = [
+    {name = "Jasper van de Meent", email = "jasper@humotica.nl"},
+    {name = "Root AI", email = "root_idd@humotica.nl"}
+]
+keywords = ["jis", "tibet", "identity", "bilateral-intent", "provenance", "audit-trail", "ed25519", "ietf", "trust", "verification"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Rust",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Libraries",
+]
+requires-python = ">=3.9"
+
+[project.urls]
+Homepage = "https://humotica.com"
+Repository = "https://github.com/Humotica/jis-core"
+"Whitepaper" = "https://doi.org/10.5281/zenodo.18712238"
+Documentation = "https://datatracker.ietf.org/doc/draft-vandemeent-jis-identity/"
+"IETF Draft" = "https://datatracker.ietf.org/doc/draft-vandemeent-jis-identity/"
+
+[tool.maturin]
+features = ["python"]
+python-source = "python"
+module-name = "jis_core"

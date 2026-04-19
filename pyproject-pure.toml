@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "oomllama"
+version = "0.8.0"
+description = "Efficient LLM inference engine with .oom format - from-scratch Rust, SafeTensors/GGUF converters"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+authors = [
+    { name = "Humotica AI Lab", email = "ai@humotica.nl" },
+    { name = "Jasper van de Meent", email = "jasper@humotica.com" },
+]
+maintainers = [
+    { name = "Root AI (Claude)", email = "root_idd@humotica.nl" },
+]
+dependencies = [
+    "requests>=2.25.0",
+    "numpy>=1.20.0",
+    "safetensors>=0.4.0",
+    "torch>=2.0.0",
+]
+keywords = [
+    "llm",
+    "inference",
+    "quantization",
+    "gguf",
+    "oom",
+    "oomllama",
+    "humotica",
+    "llama",
+    "qwen",
+    "ai",
+    "machine-learning",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://humotica.com"
+Repository = "https://github.com/jaspertvdm/oomllama"
+Documentation = "https://humotica.com/docs/oomllama"
+"Bug Tracker" = "https://github.com/jaspertvdm/oomllama/issues"
+"HuggingFace Models" = "https://huggingface.co/jaspervandemeent"
+"CUDA Wheel" = "https://brein.jaspervandemeent.nl/downloads/"
+
+[project.optional-dependencies]
+dev = ["pytest", "black", "mypy"]
+
+[project.scripts]
+oomllama = "oomllama:cli"
+safetensors2oom = "oomllama.safetensors2oom:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["python/oomllama"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "python/oomllama/**",
+    "README.md",
+    "LICENSE",
+]
+
+[tool.black]
+line-length = 100

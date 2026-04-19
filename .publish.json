@@ -1,0 +1,32 @@
+{
+  "package": "oomllama",
+  "registries": {
+    "pypi": {
+      "url": "https://pypi.org/project/oomllama/",
+      "version": "0.8.0",
+      "deprecated": false
+    },
+    "crates": {
+      "url": "https://crates.io/crates/oomllama",
+      "version": "0.1.0"
+    },
+    "dockerhub": {
+      "url": "https://hub.docker.com/r/humotica/oomllama",
+      "note": "check actual image name"
+    }
+  },
+  "publish": {
+    "pypi": {
+      "command": "cd /srv/jtel-stack/packages/oomllama && python -m build && twine upload dist/*",
+      "auth": "~/.pypirc [pypi] token"
+    },
+    "crates": {
+      "command": "cd /srv/jtel-stack/packages/oomllama && cargo publish",
+      "auth": "cargo login token"
+    },
+    "docker": {
+      "command": "docker build -t humotica/oomllama . && docker push humotica/oomllama",
+      "auth": "docker login"
+    }
+  }
+}

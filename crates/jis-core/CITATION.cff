@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: "If you use did-jis-core, please cite it as below."
+title: "did-jis-core: Decentralized Identifiers for JTel Identity Standard"
+type: software
+authors:
+  - family-names: "van de Meent"
+    given-names: "Jasper"
+    email: "jasper@humotica.nl"
+    affiliation: "Humotica"
+    orcid: ""
+  - name: "Root AI (Claude)"
+    email: "root_idd@humotica.nl"
+    affiliation: "Humotica"
+version: "0.1.0"
+date-released: "2026-02-03"
+license: "MIT"
+url: "https://humotica.com"
+repository-code: "https://github.com/Humotica/did-jis-core"
+keywords:
+  - did
+  - identity
+  - decentralized
+  - jis
+  - w3c
+  - verifiable
+  - ed25519
+  - cryptography
+abstract: >-
+  DID:JIS implements the JTel Identity Standard for decentralized
+  identifiers. Part of the HumoticaOS identity stack, it provides
+  Ed25519-based identity management with DID Document creation,
+  bilateral consent services, and TIBET provenance integration.
+  Available as a 50KB Rust kernel with Python, JavaScript/WASM,
+  and C bindings.
+references:
+  - type: standard
+    title: "JIS: JTel Identity Standard"
+    authors:
+      - family-names: "van de Meent"
+        given-names: "Jasper"
+    url: "https://datatracker.ietf.org/doc/draft-vandemeent-jis-identity/"
+    notes: "IETF Internet-Draft"

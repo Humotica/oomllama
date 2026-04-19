@@ -1,0 +1,19 @@
+{
+  "jis_version": "1.0",
+  "jis_id": "jis:sha256:88e0bbdad4020c9a",
+  "publisher": {
+    "name": "Humotica AI Lab",
+    "owner": "J. van de Meent",
+    "domain": "humotica.com"
+  },
+  "claim": {
+    "platform": "github",
+    "account": "Humotica",
+    "repo": "oomllama"
+  },
+  "provenance": {
+    "created_by": "tibet-forge",
+    "protocol": "TIBET v1.0",
+    "note": "Portable identity \u2014 travels with the package"
+  }
+}
