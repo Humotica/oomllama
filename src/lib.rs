@@ -83,6 +83,9 @@ pub mod tibet_bench;
 // turbo_mem — Non-temporal stores, prefetch, madvise (Doom/Quake memory tricks)
 pub mod turbo_mem;
 
+// CopperEngine — Distributed co-processing (Amiga Copper / Atari Blitter)
+pub mod copper;
+
 pub use types::IDD;
 pub use intent::{Intent, Action, IntentVerification};
 pub use trust::*;
@@ -134,6 +137,7 @@ pub use transport::quic_mux::{StreamMux, InferenceStream, StreamEvent, StreamRec
 pub use von_braun::{VonBraunEngine, VonBraunConfig, VonBraunStats};
 pub use tibet_bench::{BenchReport, BenchRunner, BenchMeasurement};
 pub use turbo_mem::{nt_memcpy, nt_memzero, nt_page_inject, prefetch_read, prefetch_nta, prefetch_page, optimize_arena, ArenaOptResult};
+pub use copper::{CopperEngine, CopperConfig, CopperMode, CopperNodeConfig, LayerAssignment, CopperStats};
 
 
 /// OomLlama version
