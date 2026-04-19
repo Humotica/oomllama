@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     libzstd-dev \
+    clang \
+    libclang-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -26,9 +28,8 @@ COPY crates/trust-kernel/ ./crates/trust-kernel/
 COPY crates/tibet-store-mmu/ ./crates/tibet-store-mmu/
 COPY crates/jis-core/ ./crates/jis-core/
 
-# Build release binary (oomllama-server + gguf2oom)
-RUN cargo build --release --bin oomllama-server --bin gguf2oom 2>/dev/null || \
-    cargo build --release --bin oomllama --bin gguf2oom
+# Build release binaries
+RUN cargo build --release --bin oomllama --bin gguf2oom
 
 # Stage 2: Minimal runtime image
 FROM debian:trixie-slim
@@ -41,8 +42,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy binaries from builder
-COPY --from=builder /build/target/release/oomllama-server /usr/local/bin/oomllama 2>/dev/null || true
-COPY --from=builder /build/target/release/oomllama /usr/local/bin/ 2>/dev/null || true
+COPY --from=builder /build/target/release/oomllama /usr/local/bin/
 COPY --from=builder /build/target/release/gguf2oom /usr/local/bin/
 
 # Create model directory
