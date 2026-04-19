@@ -1,6 +1,6 @@
 [package]
 name = "oomllama"
-version = "1.0.0-alpha"
+version = "1.0.0-alpha.2"
 edition = "2021"
 authors = ["Jasper van de Meent <jasper@humotica.com>", "Root AI <root_idd@humotica.nl>"]
 description = "Sovereign AI Inference Engine — .oom quantization, Trust Kernel encryption, JIS identity routing, TIBET provenance. The auto where trust-kernel is the motor."

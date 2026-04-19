@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "oomllama"
-version = "1.0.0a1"
+version = "1.0.0a2"
 description = "Sovereign AI Inference Engine — .oom quantization, Trust Kernel encryption, JIS identity routing, TIBET provenance. Spaceshuttle lazy loading, RAM-RAID distributed memory."
 readme = "README.md"
 license = { text = "MIT" }
