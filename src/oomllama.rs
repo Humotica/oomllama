@@ -449,10 +449,9 @@ impl GhostAttention {
         let v = v.reshape((batch, seq_len, self.num_kv_heads, self.head_dim))?
             .transpose(1, 2)?;
 
-        // Apply RoPE using pre-computed frequencies
-        // GGUF weights use non-interleaved (LLaMA-style) layout: split at half_dim
-        let q = crate::oomllama_turbo::apply_rope_llama(&q, &self.rope_sin, &self.rope_cos, 0)?;
-        let k = crate::oomllama_turbo::apply_rope_llama(&k, &self.rope_sin, &self.rope_cos, 0)?;
+        // Apply RoPE using pre-computed frequencies (interleaved format)
+        let q = crate::oomllama_turbo::apply_rope(&q, &self.rope_sin, &self.rope_cos, 0)?;
+        let k = crate::oomllama_turbo::apply_rope(&k, &self.rope_sin, &self.rope_cos, 0)?;
 
         // Debug Q/K after RoPE (once)
         static DEBUG_ROPE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
