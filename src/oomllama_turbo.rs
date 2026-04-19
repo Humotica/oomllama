@@ -345,16 +345,6 @@ pub fn flash_attention_forward(
     let k_t = k.transpose(2, 3)?.contiguous()?;
     let att = (q.contiguous()?.matmul(&k_t)? * scale as f64)?;
 
-    // Debug: check att scores
-    static DEBUG_FLASH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-    let do_debug = !DEBUG_FLASH.swap(true, std::sync::atomic::Ordering::Relaxed);
-    if do_debug {
-        let att_flat = att.flatten_all()?.to_vec1::<f32>()?;
-        let has_nan = att_flat.iter().any(|v| v.is_nan());
-        let has_inf = att_flat.iter().any(|v| v.is_infinite());
-        println!("🔍 FLASH PRE-MASK: has_nan={}, has_inf={}, first 5: {:?}", has_nan, has_inf, &att_flat[..5.min(att_flat.len())]);
-    }
-
     // Apply causal mask if needed
     let att = if config.causal && q_seq_len > 1 {
         // Create causal mask: mask out future tokens (where j > i)
@@ -366,26 +356,13 @@ pub fn flash_attention_forward(
         let mask = (mask - eye)?;
         let mask = mask.broadcast_as(att.shape())?;
         // Mask out future tokens with large negative value (avoid -inf for softmax stability)
-        let masked = att.broadcast_add(&(mask * -1e9)?)?;
-        if do_debug {
-            let att_flat = masked.flatten_all()?.to_vec1::<f32>()?;
-            let inf_count = att_flat.iter().filter(|v| v.is_infinite()).count();
-            let neg_inf_count = att_flat.iter().filter(|v| **v == f32::NEG_INFINITY).count();
-            println!("🔍 FLASH POST-MASK: inf_count={}, neg_inf_count={}, total={}", inf_count, neg_inf_count, att_flat.len());
-        }
-        masked
+        att.broadcast_add(&(mask * -1e9)?)?
     } else {
         att
     };
 
     // Softmax
     let att = candle_nn::ops::softmax_last_dim(&att)?;
-
-    if do_debug {
-        let att_flat = att.flatten_all()?.to_vec1::<f32>()?;
-        let has_nan = att_flat.iter().any(|v| v.is_nan());
-        println!("🔍 FLASH POST-SOFTMAX: has_nan={}, first 5: {:?}", has_nan, &att_flat[..5.min(att_flat.len())]);
-    }
 
     // Attention @ Values (contiguous for matmul)
     att.contiguous()?.matmul(&v.contiguous()?)
@@ -578,45 +555,9 @@ impl TurboEngine {
     ) -> candle_core::Result<Tensor> {
         let (batch, seq_len, hidden) = x.dims3()?;
 
-        // Debug: Check weights for NaN (only first call)
-        static DEBUG_ONCE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-        let do_debug = !DEBUG_ONCE.swap(true, std::sync::atomic::Ordering::Relaxed) && layer_idx == 0;
-
-        if do_debug {
-            let wo_flat = wo.flatten_all()?.to_vec1::<f32>()?;
-            let wo_nan = wo_flat.iter().any(|v| v.is_nan());
-            let wo_inf = wo_flat.iter().any(|v| v.is_infinite());
-            let wo_min = wo_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let wo_max = wo_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 WO WEIGHTS: has_nan={}, has_inf={}, min={:.6}, max={:.6}, shape={:?}",
-                wo_nan, wo_inf, wo_min, wo_max, wo.shape());
-        }
-
         // Get output dimensions from weight shapes: wq is [hidden, q_out], etc.
         let q_out = wq.dim(1)?;
         let kv_out = wk.dim(1)?;
-
-        // Debug: Check wq weights
-        if do_debug {
-            let wq_flat = wq.flatten_all()?.to_vec1::<f32>()?;
-            let wq_nan = wq_flat.iter().any(|x| x.is_nan());
-            let wq_inf = wq_flat.iter().any(|x| x.is_infinite());
-            let wq_min = wq_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let wq_max = wq_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 WQ WEIGHTS: has_nan={}, has_inf={}, min={:.6}, max={:.6}, shape={:?}",
-                wq_nan, wq_inf, wq_min, wq_max, wq.shape());
-        }
-
-        // Debug: Check wv weights
-        if do_debug {
-            let wv_flat = wv.flatten_all()?.to_vec1::<f32>()?;
-            let wv_nan = wv_flat.iter().any(|x| x.is_nan());
-            let wv_inf = wv_flat.iter().any(|x| x.is_infinite());
-            let wv_min = wv_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let wv_max = wv_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 WV WEIGHTS: has_nan={}, has_inf={}, min={:.6}, max={:.6}, shape={:?}",
-                wv_nan, wv_inf, wv_min, wv_max, wv.shape());
-        }
 
         // Project Q, K, V - reshape for batched matmul: [B, S, H] -> [B*S, H]
         let x_flat = x.reshape((batch * seq_len, hidden))?;
@@ -624,39 +565,9 @@ impl TurboEngine {
         let k = x_flat.matmul(wk)?.reshape((batch, seq_len, kv_out))?;
         let v = x_flat.matmul(wv)?.reshape((batch, seq_len, kv_out))?;
 
-        // Debug: Check q after projection (before reshape)
-        if do_debug {
-            let q_flat = q.flatten_all()?.to_vec1::<f32>()?;
-            let q_nan = q_flat.iter().any(|x| x.is_nan());
-            let q_inf = q_flat.iter().any(|x| x.is_infinite());
-            let q_min = q_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let q_max = q_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 Q PROJ OUT: has_nan={}, has_inf={}, min={:.4}, max={:.4}",
-                q_nan, q_inf, q_min, q_max);
-        }
-
-        // Debug: Check v after projection (before reshape)
-        if do_debug {
-            let v_flat = v.flatten_all()?.to_vec1::<f32>()?;
-            let v_nan = v_flat.iter().any(|x| x.is_nan());
-            let v_inf = v_flat.iter().any(|x| x.is_infinite());
-            let v_min = v_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let v_max = v_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 V PROJ OUT: has_nan={}, has_inf={}, min={:.4}, max={:.4}",
-                v_nan, v_inf, v_min, v_max);
-        }
-
         // Reshape for multi-head attention (contiguous for matmul)
         let mut q = q.reshape((batch, seq_len, self.config.n_heads, self.config.head_dim))?
             .transpose(1, 2)?.contiguous()?; // [batch, n_heads, seq_len, head_dim]
-
-        // Debug: Check Q before RoPE
-        if do_debug {
-            let q_flat = q.flatten_all()?.to_vec1::<f32>()?;
-            let q_min = q_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let q_max = q_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 Q BEFORE ROPE: min={:.4}, max={:.4}", q_min, q_max);
-        }
         let mut k = k.reshape((batch, seq_len, self.config.n_kv_heads, self.config.head_dim))?
             .transpose(1, 2)?.contiguous()?;
         let v = v.reshape((batch, seq_len, self.config.n_kv_heads, self.config.head_dim))?
@@ -667,37 +578,12 @@ impl TurboEngine {
         let pos_start = self.kv_cache.seq_len();
         (q, k) = self.apply_rope(&q, &k, pos_start)?;
 
-        // Debug: Check after RoPE
-        if do_debug {
-            let q_flat = q.flatten_all()?.to_vec1::<f32>()?;
-            let k_flat = k.flatten_all()?.to_vec1::<f32>()?;
-            let q_nan = q_flat.iter().any(|v| v.is_nan());
-            let k_nan = k_flat.iter().any(|v| v.is_nan());
-            let q_inf = q_flat.iter().any(|v| v.is_infinite());
-            let k_inf = k_flat.iter().any(|v| v.is_infinite());
-            let q_min = q_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let q_max = q_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 AFTER ROPE: q_nan={}, k_nan={}, q_min={:.4}, q_max={:.4}",
-                q_nan, k_nan, q_min, q_max);
-        }
-
         // Update KV cache
         let cache = self.kv_cache.get_layer_mut(layer_idx);
         cache.append(&k, &v)?;
 
         // Get full K, V from cache
         let (full_k, full_v) = cache.get().unwrap();
-
-        // Debug: Check V values before flash attention
-        if do_debug {
-            let v_flat = full_v.flatten_all()?.to_vec1::<f32>()?;
-            let v_nan = v_flat.iter().any(|x| x.is_nan());
-            let v_inf = v_flat.iter().any(|x| x.is_infinite());
-            let v_min = v_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let v_max = v_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 FULL_V: has_nan={}, has_inf={}, min={:.4}, max={:.4}, shape={:?}",
-                v_nan, v_inf, v_min, v_max, full_v.shape());
-        }
 
         // Apply attention (with Flash Attention if enabled)
         let att_out = if self.config.use_flash_attention {
@@ -716,42 +602,15 @@ impl TurboEngine {
             att.contiguous()?.matmul(&full_v.contiguous()?)?
         };
 
-        // Debug: Check flash attention output
-        if do_debug {
-            let att_flat_dbg = att_out.flatten_all()?.to_vec1::<f32>()?;
-            let has_nan = att_flat_dbg.iter().any(|v| v.is_nan());
-            let has_inf = att_flat_dbg.iter().any(|v| v.is_infinite());
-            println!("🔍 FLASH ATT OUT: has_nan={}, has_inf={}, shape={:?}",
-                has_nan, has_inf, att_out.shape());
-        }
-
         // Reshape and project output (contiguous after transpose)
         let hidden_out = self.config.n_heads * self.config.head_dim;
         let att_out = att_out.transpose(1, 2)?.contiguous()?
             .reshape((batch, seq_len, hidden_out))?;
 
-        // Debug: Check after transpose
-        if do_debug {
-            let att_flat_dbg = att_out.flatten_all()?.to_vec1::<f32>()?;
-            let has_nan = att_flat_dbg.iter().any(|v| v.is_nan());
-            let has_inf = att_flat_dbg.iter().any(|v| v.is_infinite());
-            println!("🔍 AFTER TRANSPOSE: has_nan={}, has_inf={}, shape={:?}",
-                has_nan, has_inf, att_out.shape());
-        }
-
         // Output projection: [B, S, H] -> [B*S, H] -> matmul -> [B, S, H]
         let att_flat = att_out.reshape((batch * seq_len, hidden_out))?;
         let o_out = wo.dim(1)?;
         let result = att_flat.matmul(wo)?.reshape((batch, seq_len, o_out))?;
-
-        // Debug: Check final output projection
-        if do_debug {
-            let result_flat = result.flatten_all()?.to_vec1::<f32>()?;
-            let has_nan = result_flat.iter().any(|v| v.is_nan());
-            let has_inf = result_flat.iter().any(|v| v.is_infinite());
-            println!("🔍 OUTPUT PROJ: has_nan={}, has_inf={}, shape={:?}",
-                has_nan, has_inf, result.shape());
-        }
 
         Ok(result)
     }
@@ -771,139 +630,32 @@ impl TurboEngine {
     ) -> candle_core::Result<Tensor> {
         let (batch, seq_len, hidden) = x.dims3()?;
 
-        // Debug: Check weights for NaN (only first call)
-        static DEBUG_BIAS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-        let do_debug = !DEBUG_BIAS.swap(true, std::sync::atomic::Ordering::Relaxed) && layer_idx == 0;
-
-        if do_debug {
-            println!("🔍 ATTENTION WITH BIAS: bq={}, bk={}, bv={}",
-                bq.is_some(), bk.is_some(), bv.is_some());
-        }
-
         // Get output dimensions from weight shapes: wq is [hidden, q_out], etc.
         let q_out = wq.dim(1)?;
         let kv_out = wk.dim(1)?;
 
-        // Debug: Weight stats
-        if do_debug {
-            let wq_flat = wq.flatten_all()?.to_vec1::<f32>()?;
-            let wq_mean: f32 = wq_flat.iter().sum::<f32>() / wq_flat.len() as f32;
-            let wq_var: f32 = wq_flat.iter().map(|v| (v - wq_mean).powi(2)).sum::<f32>() / wq_flat.len() as f32;
-            let wq_min = wq_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let wq_max = wq_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 Q WEIGHT (wq): min={:.4}, max={:.4}, mean={:.6}, var={:.6}, shape={:?}", wq_min, wq_max, wq_mean, wq_var, wq.shape());
-
-            // Check column statistics (each column is used for one output)
-            // wq is [in, out] = [3584, 3584], so column j has weights for output j
-            let cols = wq.dim(1)?;
-            let rows = wq.dim(0)?;
-            let mut col_means: Vec<f32> = Vec::with_capacity(cols);
-            for j in 0..cols.min(10) { // Check first 10 columns
-                let col = wq.narrow(1, j, 1)?.flatten_all()?.to_vec1::<f32>()?;
-                let col_mean: f32 = col.iter().sum::<f32>() / col.len() as f32;
-                let col_sum: f32 = col.iter().sum();
-                col_means.push(col_mean);
-            }
-//            println!("🔍 Q WEIGHT col means (first 10): {:?}", col_means.iter().map(|v| format!("{:.2}", v)).collect::<Vec<_>>());
-        }
-
         // Project Q, K, V - reshape for batched matmul: [B, S, H] -> [B*S, H]
         let x_flat = x.reshape((batch * seq_len, hidden))?;
-
-        // Debug: Check shapes before matmul
-        if do_debug {
-            println!("🔍 MATMUL SHAPES: x_flat={:?}, wq={:?}", x_flat.shape(), wq.shape());
-            // Check x_flat stats per row (token)
-            let rows = x_flat.dim(0)?;
-            for r in 0..rows {
-                let row = x_flat.narrow(0, r, 1)?.flatten_all()?.to_vec1::<f32>()?;
-                let row_sum: f32 = row.iter().sum();
-                let row_mean = row_sum / row.len() as f32;
-                let row_min = row.iter().cloned().fold(f32::INFINITY, f32::min);
-                let row_max = row.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-//                println!("🔍 x_flat row {} (token): min={:.4}, max={:.4}, mean={:.4}, sum={:.1}", r, row_min, row_max, row_mean, row_sum);
-            }
-        }
 
         let mut q = x_flat.matmul(wq)?;
         let mut k = x_flat.matmul(wk)?;
         let mut v = x_flat.matmul(wv)?;
 
-        // Debug: Q BEFORE bias
-        if do_debug {
-            let q_flat = q.flatten_all()?.to_vec1::<f32>()?;
-            let q_min = q_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let q_max = q_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            let q_mean: f32 = q_flat.iter().sum::<f32>() / q_flat.len() as f32;
-            println!("🔍 Q BEFORE BIAS: min={:.4}, max={:.4}, mean={:.4}, shape={:?}", q_min, q_max, q_mean, q.shape());
-
-            // Find which output dimensions have extreme values
-            // q is [8, 3584]
-            let rows = q.dim(0)?;
-            let cols = q.dim(1)?;
-            // Check col 0 values (same output dim across all tokens)
-            let col0 = q.narrow(1, 0, 1)?.flatten_all()?.to_vec1::<f32>()?;
-//            println!("🔍 Q col 0 (all tokens): {:?}", col0.iter().map(|v| format!("{:.1}", v)).collect::<Vec<_>>());
-
-            // Find min/max indices
-            let (min_idx, _) = q_flat.iter().enumerate().min_by(|a, b| a.1.partial_cmp(b.1).unwrap()).unwrap();
-            let (max_idx, _) = q_flat.iter().enumerate().max_by(|a, b| a.1.partial_cmp(b.1).unwrap()).unwrap();
-            let min_row = min_idx / cols;
-            let min_col = min_idx % cols;
-            let max_row = max_idx / cols;
-            let max_col = max_idx % cols;
-//            println!("🔍 Q min at [{},{}], max at [{},{}]", min_row, min_col, max_row, max_col);
-
-            // Check W column at max position
-            let w_col_max = wq.narrow(1, max_col, 1)?.flatten_all()?.to_vec1::<f32>()?;
-            let w_col_sum: f32 = w_col_max.iter().sum();
-            let w_col_mean = w_col_sum / w_col_max.len() as f32;
-            let w_col_min = w_col_max.iter().cloned().fold(f32::INFINITY, f32::min);
-            let w_col_max_v = w_col_max.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-//            println!("🔍 W col {} (max Q col): min={:.4}, max={:.4}, mean={:.6}, sum={:.1}", max_col, w_col_min, w_col_max_v, w_col_mean, w_col_sum);
-        }
-
-        // TEMPORARILY DISABLE BIASES TO DEBUG
         // Apply biases if present (Qwen requires this!)
-        let use_biases = true;  // Toggle this to test
-        if use_biases {
-            if let Some(bias) = bq {
-                if do_debug {
-                    let bias_flat = bias.flatten_all()?.to_vec1::<f32>()?;
-                    let bias_min = bias_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-                    let bias_max = bias_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-                    println!("🔍 Q BIAS VALUES: min={:.4}, max={:.4}, shape={:?}", bias_min, bias_max, bias.shape());
-                }
-                q = q.broadcast_add(bias)?;
-            }
-            if let Some(bias) = bk {
-                if do_debug {
-                    let bias_flat = bias.flatten_all()?.to_vec1::<f32>()?;
-                    let bias_min = bias_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-                    let bias_max = bias_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-                    println!("🔍 K BIAS VALUES: min={:.4}, max={:.4}", bias_min, bias_max);
-                }
-                k = k.broadcast_add(bias)?;
-            }
-            if let Some(bias) = bv {
-                v = v.broadcast_add(bias)?;
-            }
-        } else {
-            println!("⚠️ BIASES DISABLED FOR TESTING");
+        if let Some(bias) = bq {
+            q = q.broadcast_add(bias)?;
+        }
+        if let Some(bias) = bk {
+            k = k.broadcast_add(bias)?;
+        }
+        if let Some(bias) = bv {
+            v = v.broadcast_add(bias)?;
         }
 
         // Reshape back to [B, S, dim]
         let q = q.reshape((batch, seq_len, q_out))?;
         let k = k.reshape((batch, seq_len, kv_out))?;
         let v = v.reshape((batch, seq_len, kv_out))?;
-
-        // Debug: Check q after projection with bias
-        if do_debug {
-            let q_flat = q.flatten_all()?.to_vec1::<f32>()?;
-            let q_min = q_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let q_max = q_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 Q PROJ+BIAS: min={:.4}, max={:.4}", q_min, q_max);
-        }
 
         // Reshape for multi-head attention (contiguous for matmul)
         let mut q = q.reshape((batch, seq_len, self.config.n_heads, self.config.head_dim))?
@@ -922,19 +674,6 @@ impl TurboEngine {
         // numerically stable softmax (log-sum-exp trick).
         // Do NOT scale Q and K here - let flash attention handle it.
 
-        // Debug: Check after RoPE and scaling
-        if do_debug {
-            let q_flat = q.flatten_all()?.to_vec1::<f32>()?;
-            let q_min = q_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let q_max = q_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 Q AFTER ROPE+SCALE: min={:.4}, max={:.4}", q_min, q_max);
-
-            let k_flat = k.flatten_all()?.to_vec1::<f32>()?;
-            let k_min = k_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let k_max = k_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 K AFTER ROPE+SCALE: min={:.4}, max={:.4}", k_min, k_max);
-        }
-
         // Update KV cache
         let cache = self.kv_cache.get_layer_mut(layer_idx);
         cache.append(&k, &v)?;
@@ -949,31 +688,6 @@ impl TurboEngine {
             softmax_scale: Some(softmax_scale),
             ..Default::default()
         };
-
-        // Debug: Manual attention score calculation (once per layer)
-        if do_debug {
-            // Handle GQA: expand K to match Q heads
-            let n_heads = self.config.n_heads;
-            let n_kv_heads = self.config.n_kv_heads;
-            let k_expanded = if n_kv_heads != n_heads {
-                let repeat_factor = n_heads / n_kv_heads;
-{
-                    let k = full_k.unsqueeze(2)?;
-                    let (b, nkv, _, s, d) = (k.dim(0)?, k.dim(1)?, 1, k.dim(3)?, k.dim(4)?);
-                    let k = k.expand(&[b, nkv, repeat_factor, s, d])?;
-                    k.reshape(&[b, n_heads, s, d])?.contiguous()?
-                }
-            } else {
-                full_k.contiguous()?
-            };
-            let k_t = k_expanded.transpose(2, 3)?.contiguous()?;
-            let att_manual = q.contiguous()?.matmul(&k_t)?;
-            let att_flat = att_manual.flatten_all()?.to_vec1::<f32>()?;
-            let att_min = att_flat.iter().cloned().fold(f32::INFINITY, f32::min);
-            let att_max = att_flat.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            println!("🔍 MANUAL ATT (Q@K^T): min={:.2}, max={:.2}, first 5: {:?}",
-                att_min, att_max, &att_flat[..5.min(att_flat.len())].iter().map(|v| format!("{:.1}", v)).collect::<Vec<_>>());
-        }
 
         let att_out = if self.config.use_flash_attention {
             flash_attention_forward(

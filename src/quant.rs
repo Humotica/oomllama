@@ -411,7 +411,11 @@ impl OomLoader {
         let data_len = u32::from_le_bytes(self.mmap[offset+8..offset+12].try_into()?) as usize;
         offset += 12;
 
-        let num_vals = dest.len().min(256);
+        let num_vals = if meta.quant_type == 0 {
+            dest.len().min(data_len / 4)
+        } else {
+            dest.len().min(256)
+        };
         match meta.quant_type {
             0 => {
                 let view = BlockF32View { data: &self.mmap[offset..offset+data_len], num_values: num_vals };
@@ -467,7 +471,12 @@ impl OomLoader {
 
             offset += 12;
 
-            let num_vals = (meta.total_values as usize - current_pos).min(256);
+            // F32 blocks can contain all values in a single block (not limited to 256)
+            let num_vals = if meta.quant_type == 0 {
+                (data_len / 4).min(meta.total_values as usize - current_pos)
+            } else {
+                (meta.total_values as usize - current_pos).min(256)
+            };
             match meta.quant_type {
                 0 => {
                     let view = BlockF32View { data: &self.mmap[offset..offset+data_len], num_values: num_vals };
